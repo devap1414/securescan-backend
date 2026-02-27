@@ -16,7 +16,7 @@ from config import (
     SAFE_THRESHOLD,
     SUSPICIOUS_THRESHOLD,
 )
-from services import virustotal_service, safe_browsing_service, heuristic_analyzer, sandbox_service
+from services import virustotal_service, safe_browsing_service, heuristic_analyzer, sandbox_service, domain_age_service
 
 import re
 
@@ -113,6 +113,9 @@ async def analyze_url(request: AnalyzeRequest):
     # Heuristic runs synchronously (no I/O)
     heuristic_result = heuristic_analyzer.analyze_url(url)
 
+    # Domain age lookup (synchronous, fast)
+    domain_age_result = domain_age_service.get_domain_age(url)
+
     # Await only fast tasks
     vt_result = await vt_task
     sb_result = await sb_task
@@ -159,6 +162,17 @@ async def analyze_url(request: AnalyzeRequest):
             description=sandbox_result.get("details", "Sandbox flagged this URL as malicious."),
             severity="high",
             score_contribution=sandbox_result.get("score", 30),
+        ))
+
+    # --- Domain age reasons ---
+    if domain_age_result.get("is_new_domain", False):
+        age_days = domain_age_result.get("domain_age_days", 0)
+        risk_reasons.append(RiskReason(
+            source="domain_age",
+            title="Newly Registered Domain",
+            description=f"This domain was registered only {age_days} days ago. Newly created domains are frequently used in phishing attacks.",
+            severity="medium",
+            score_contribution=10,
         ))
 
     # --- Calculate combined risk score ---
@@ -220,6 +234,10 @@ async def analyze_url(request: AnalyzeRequest):
         safe_browsing_threats=sb_result["threats"],
         heuristic_flags=[f["title"] for f in heuristic_result["flags"]],
         sandbox_result=sandbox_model,
+        domain_age_days=domain_age_result.get("domain_age_days", -1),
+        registration_date=domain_age_result.get("registration_date", ""),
+        registrar=domain_age_result.get("registrar", ""),
+        is_new_domain=domain_age_result.get("is_new_domain", False),
         summary=summary,
     )
 

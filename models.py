@@ -52,6 +52,10 @@ class AnalyzeResponse(BaseModel):
     safe_browsing_threats: list[str] = []
     heuristic_flags: list[str] = []
     sandbox_result: Optional[SandboxResult] = None
+    domain_age_days: int = -1
+    registration_date: str = ""
+    registrar: str = ""
+    is_new_domain: bool = False
     summary: str = ""
 
     class Config:
