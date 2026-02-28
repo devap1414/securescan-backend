@@ -191,6 +191,14 @@ async def analyze_url(request: AnalyzeRequest):
     )
     combined_score = min(round(combined_score, 1), 100)
 
+    # --- If any service confirms malware/phishing → force score to 100 ---
+    if (
+        sb_result["is_threat"]
+        or sandbox_result.get("is_malicious", False)
+        or (vt_result["positives"] > 0 and vt_result["total"] > 0 and vt_result["positives"] / vt_result["total"] >= 0.1)
+    ):
+        combined_score = 100
+
     # --- Determine risk level ---
     if combined_score <= SAFE_THRESHOLD:
         risk_level = RiskLevel.SAFE

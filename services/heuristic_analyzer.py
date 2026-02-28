@@ -131,10 +131,24 @@ def analyze_url(url: str) -> dict:
             break
 
     # --- 6. Suspicious Keywords in URL ---
+    high_confidence_keywords = {"phishing", "malware"}
     found_keywords = []
+    found_high_confidence = []
     for kw in SUSPICIOUS_KEYWORDS:
         if kw in full_url:
-            found_keywords.append(kw)
+            if kw in high_confidence_keywords:
+                found_high_confidence.append(kw)
+            else:
+                found_keywords.append(kw)
+
+    if found_high_confidence:
+        points = min(len(found_high_confidence) * 25, 40)
+        flags.append({
+            "title": "Phishing/Malware Keywords in URL",
+            "description": f"URL contains high-risk keywords: {', '.join(found_high_confidence)}. This is a strong indicator of a malicious site.",
+            "severity": "high",
+            "points": points,
+        })
 
     if found_keywords:
         severity = "high" if len(found_keywords) >= 3 else "medium"

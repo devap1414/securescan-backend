@@ -14,8 +14,8 @@ SAFE_BROWSING_API_KEY = os.getenv("SAFE_BROWSING_API_KEY", "")
 URLSCAN_API_KEY = os.getenv("URLSCAN_API_KEY", "")
 
 # --- Risk Score Weights ---
-WEIGHT_VIRUSTOTAL = 0.40
-WEIGHT_SAFE_BROWSING = 0.35
+WEIGHT_VIRUSTOTAL = 0.50
+WEIGHT_SAFE_BROWSING = 1.00
 WEIGHT_HEURISTIC = 0.60  # Higher weight so heuristics alone can flag threats
 
 # --- Thresholds ---
@@ -42,7 +42,7 @@ SUSPICIOUS_KEYWORDS = [
     "login", "verify", "update", "secure", "account", "banking",
     "confirm", "password", "signin", "suspend", "alert", "urgent",
     "wallet", "prize", "winner", "free", "claim", "reward",
-    "unauthorized", "expire", "limited",
+    "unauthorized", "expire", "limited", "phishing", "malware",
 ]
 
 URL_SHORTENERS = [
