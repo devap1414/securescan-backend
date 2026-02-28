@@ -37,7 +37,7 @@ async def analyze_url(url: str) -> dict:
         # URL-safe base64 encode the URL (VirusTotal API v3 requirement)
         url_id = base64.urlsafe_b64encode(url.encode()).decode().rstrip("=")
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=15.0) as client:
             # First, try to get existing analysis
             resp = await client.get(f"{VT_BASE}/urls/{url_id}", headers=headers)
 

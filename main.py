@@ -85,11 +85,8 @@ async def analyze_url(request: AnalyzeRequest):
     if not _is_valid_url(url):
         raise HTTPException(status_code=400, detail="Invalid URL format")
 
-    # --- Run all checks concurrently ---
+    # --- Run ALL checks concurrently for maximum speed ---
     import asyncio
-
-    vt_task = asyncio.create_task(virustotal_service.analyze_url(url))
-    sb_task = asyncio.create_task(safe_browsing_service.check_url(url))
 
     # Sandbox runs in background – does NOT block the response
     # (urlscan.io takes 15-30s, we don't wait for it)
@@ -110,15 +107,15 @@ async def analyze_url(request: AnalyzeRequest):
         "score": 0,
     }
 
-    # Heuristic runs synchronously (no I/O)
+    # Heuristic runs synchronously (no I/O, instant)
     heuristic_result = heuristic_analyzer.analyze_url(url)
 
-    # Domain age lookup (synchronous, fast)
-    domain_age_result = domain_age_service.get_domain_age(url)
-
-    # Await only fast tasks
-    vt_result = await vt_task
-    sb_result = await sb_task
+    # Run VT, Safe Browsing, and Domain Age ALL concurrently
+    vt_result, sb_result, domain_age_result = await asyncio.gather(
+        virustotal_service.analyze_url(url),
+        safe_browsing_service.check_url(url),
+        domain_age_service.get_domain_age(url),
+    )
 
     # --- Build risk reasons list ---
     risk_reasons: list[RiskReason] = []
