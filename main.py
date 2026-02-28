@@ -18,6 +18,8 @@ from config import (
 )
 from services import virustotal_service, safe_browsing_service, heuristic_analyzer, sandbox_service, domain_age_service
 
+import asyncio
+import time as _time
 import re
 
 app = FastAPI(
@@ -86,10 +88,9 @@ async def analyze_url(request: AnalyzeRequest):
         raise HTTPException(status_code=400, detail="Invalid URL format")
 
     # --- Run ALL checks concurrently for maximum speed ---
-    import asyncio
+    _t0 = _time.perf_counter()
 
     # Sandbox runs in background – does NOT block the response
-    # (urlscan.io takes 15-30s, we don't wait for it)
     sandbox_result = {
         "available": False,
         "is_malicious": False,
@@ -110,12 +111,20 @@ async def analyze_url(request: AnalyzeRequest):
     # Heuristic runs synchronously (no I/O, instant)
     heuristic_result = heuristic_analyzer.analyze_url(url)
 
+    # --- Wrap each service with timing ---
+    async def _timed(name, coro):
+        t = _time.perf_counter()
+        result = await coro
+        print(f"[PERF] {name}: {_time.perf_counter() - t:.2f}s")
+        return result
+
     # Run VT, Safe Browsing, and Domain Age ALL concurrently
     vt_result, sb_result, domain_age_result = await asyncio.gather(
-        virustotal_service.analyze_url(url),
-        safe_browsing_service.check_url(url),
-        domain_age_service.get_domain_age(url),
+        _timed("VirusTotal", virustotal_service.analyze_url(url)),
+        _timed("SafeBrowsing", safe_browsing_service.check_url(url)),
+        _timed("DomainAge", domain_age_service.get_domain_age(url)),
     )
+    print(f"[PERF] Total /analyze: {_time.perf_counter() - _t0:.2f}s")
 
     # --- Build risk reasons list ---
     risk_reasons: list[RiskReason] = []

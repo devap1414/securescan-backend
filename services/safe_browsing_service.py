@@ -9,6 +9,9 @@ from config import SAFE_BROWSING_API_KEY
 
 SB_URL = "https://safebrowsing.googleapis.com/v4/threatMatches:find"
 
+# Reusable client – keeps TCP/TLS connections alive across requests
+_client = httpx.AsyncClient(timeout=15.0)
+
 
 async def check_url(url: str) -> dict:
     """
@@ -47,57 +50,56 @@ async def check_url(url: str) -> dict:
     }
 
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.post(
-                SB_URL,
-                params={"key": SAFE_BROWSING_API_KEY},
-                json=payload,
-            )
+        resp = await _client.post(
+            SB_URL,
+            params={"key": SAFE_BROWSING_API_KEY},
+            json=payload,
+        )
 
-            if resp.status_code != 200:
-                return {
-                    "is_threat": False,
-                    "threats": [],
-                    "score": 0.0,
-                    "details": f"Safe Browsing API error: {resp.status_code}",
-                }
-
-            data = resp.json()
-            matches = data.get("matches", [])
-
-            if not matches:
-                return {
-                    "is_threat": False,
-                    "threats": [],
-                    "score": 0.0,
-                    "details": "No threats found in Google Safe Browsing database",
-                }
-
-            # Extract threat types
-            threat_types = list(set(m.get("threatType", "UNKNOWN") for m in matches))
-            threat_labels = {
-                "MALWARE": "Malware",
-                "SOCIAL_ENGINEERING": "Phishing / Social Engineering",
-                "UNWANTED_SOFTWARE": "Unwanted Software",
-                "POTENTIALLY_HARMFUL_APPLICATION": "Potentially Harmful App",
-            }
-            threats = [threat_labels.get(t, t) for t in threat_types]
-
-            # Score based on threat severity
-            severity_scores = {
-                "MALWARE": 100,
-                "SOCIAL_ENGINEERING": 90,
-                "UNWANTED_SOFTWARE": 70,
-                "POTENTIALLY_HARMFUL_APPLICATION": 60,
-            }
-            score = max(severity_scores.get(t, 50) for t in threat_types)
-
+        if resp.status_code != 200:
             return {
-                "is_threat": True,
-                "threats": threats,
-                "score": float(score),
-                "details": f"Found in Google Safe Browsing: {', '.join(threats)}",
+                "is_threat": False,
+                "threats": [],
+                "score": 0.0,
+                "details": f"Safe Browsing API error: {resp.status_code}",
             }
+
+        data = resp.json()
+        matches = data.get("matches", [])
+
+        if not matches:
+            return {
+                "is_threat": False,
+                "threats": [],
+                "score": 0.0,
+                "details": "No threats found in Google Safe Browsing database",
+            }
+
+        # Extract threat types
+        threat_types = list(set(m.get("threatType", "UNKNOWN") for m in matches))
+        threat_labels = {
+            "MALWARE": "Malware",
+            "SOCIAL_ENGINEERING": "Phishing / Social Engineering",
+            "UNWANTED_SOFTWARE": "Unwanted Software",
+            "POTENTIALLY_HARMFUL_APPLICATION": "Potentially Harmful App",
+        }
+        threats = [threat_labels.get(t, t) for t in threat_types]
+
+        # Score based on threat severity
+        severity_scores = {
+            "MALWARE": 100,
+            "SOCIAL_ENGINEERING": 90,
+            "UNWANTED_SOFTWARE": 70,
+            "POTENTIALLY_HARMFUL_APPLICATION": 60,
+        }
+        score = max(severity_scores.get(t, 50) for t in threat_types)
+
+        return {
+            "is_threat": True,
+            "threats": threats,
+            "score": float(score),
+            "details": f"Found in Google Safe Browsing: {', '.join(threats)}",
+        }
 
     except httpx.TimeoutException:
         return {
@@ -113,3 +115,4 @@ async def check_url(url: str) -> dict:
             "score": 0.0,
             "details": f"Safe Browsing error: {str(e)}",
         }
+
